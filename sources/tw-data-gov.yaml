@@ -1,0 +1,367 @@
+# ==========================================
+# 1. 文件版本與維護資訊 (Document Metadata)
+# ==========================================
+catalog_version: "1.0.0"
+schema_version: "1.0"
+last_updated: "2026-11-26T12:00:00+08:00"
+maintainer: "OpenData Catalog Contributors"
+changelog:
+  - version: "1.0.0"
+    date: "2026-11-26"
+    note: "建立政府資料開放平臺初始目錄，收錄平臺詮釋資料查詢 API、全站目錄匯出端點與五大跨部會高頻熱門資料集"
+
+# ==========================================
+# 2. 資料提供方共用資訊 (Provider Info)
+# ==========================================
+provider:
+  id: "tw-data-gov"
+  name: "政府資料開放平臺"
+  summary: "我國國家級開放資料總入口，提供全站資料集詮釋資料查詢 API、總目錄匯出，以及行政日曆、公司稅籍、上市股價、健保與全字庫等跨部會基礎資料集"
+  organization: "數位發展部 (MODA)"
+  homepage: "https://data.gov.tw/"
+  docs_url: "https://data.gov.tw/m2m"
+  base_url: "https://data.gov.tw"
+  license: "政府資料開放授權條款-第1版"
+  license_url: "https://data.gov.tw/license"
+  rate_limit: "平臺詮釋資料與公開靜態資源免註冊即可下載，請避免短時間高併發爬取；大型全站匯出檔建議離峰下載並於本地快取"
+  auth:
+    required: false
+    type: "None"
+    how_to_get: "平臺本身之目錄查詢與公開檔案下載無需申請 API Key；惟若個別資料集之資源網址指向特定部會獨立 API 平臺（如環境部、交通部 TDX），則須依該平臺規範認證"
+    notes: >
+      利用本平臺開放資料及衍生物時，依「政府資料開放授權條款」規定須明確標示原資料提供機關與資料來源。
+
+# ==========================================
+# 3. 資料集清單與詳細 Metadata (Datasets)
+# ==========================================
+datasets:
+  - id: "datagov_dataset_metadata_api"
+    name: "政府資料開放平臺單一資料集詮釋資料查詢 API"
+    category: "平臺詮釋資料"
+    publisher: "數位發展部"
+    source_page: "https://data.gov.tw/"
+    ai_usage_guide: >
+      【動態探索核心端點】當已知 data.gov.tw 資料集編號 (datasetId，即網址 https://data.gov.tw/dataset/{datasetId} 末段數字)，
+      需要動態取得該資料集最新年度的檔案下載連結 (distribution[].resourceDownloadUrl)、欄位結構 (resourceField) 或更新時間時，
+      請直接對本端點發送 GET 請求，無需透過網頁爬蟲解析 HTML。
+    tags: ["詮釋資料", "Metadata", "DCAT", "API探索", "開放資料目錄"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "即時同步"
+    endpoint: "/api/v2/rest/dataset/{datasetId}"
+    sample_url: "https://data.gov.tw/api/v2/rest/dataset/14718"
+    parameters:
+      - name: "datasetId"
+        in: "path"
+        type: "integer"
+        required: true
+        example: 14718
+        description: "data.gov.tw 資料集唯一流水號（如 14718=辦公日曆表、9400=全國營業稅籍登記）"
+    fields:
+      - name: "success"
+        type: "boolean"
+        description: "API 查詢是否成功"
+      - name: "result.datasetId"
+        type: "integer"
+        description: "資料集唯一識別流水號"
+      - name: "result.title"
+        type: "string"
+        description: "資料集中文標題"
+      - name: "result.description"
+        type: "string"
+        description: "資料集內容摘要與注意事項"
+      - name: "result.modifiedDate"
+        type: "string"
+        description: "詮釋資料最後異動時間"
+      - name: "result.distribution"
+        type: "array"
+        description: "資料資源下載清單（含各年度或各格式檔案之 resourceFormat、resourceCharacterEncoding、resourceDownloadUrl、resourceField）"
+
+  - id: "datagov_catalog_export_json"
+    name: "政府資料開放平臺全站資料集總目錄匯出 (JSON)"
+    category: "平臺詮釋資料"
+    publisher: "數位發展部"
+    source_page: "https://data.gov.tw/"
+    ai_usage_guide: >
+      當本倉庫尚未收錄某個冷門政府開放資料集，且需要在全國數萬筆開放資料集中進行離線全文檢索、統計各機關開放情形或尋找 datasetId 時下載使用。
+      注意：此檔案包含全站數萬筆詮釋資料，檔案體積較大（數十 MB），切勿直接塞入 LLM Context，應先以 Python 腳本串流或讀取後依關鍵字過濾。
+    tags: ["全站目錄", "批次匯出", "資料探索", "總清單"]
+    format: "JSON"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每日更新"
+    endpoint: "/datasets/export/json"
+    sample_url: "https://data.gov.tw/datasets/export/json"
+    fields:
+      - name: "資料集識別碼"
+        type: "integer"
+        description: "對應 data.gov.tw 之 datasetId，可用於組出 /dataset/{id} 或 /api/v2/rest/dataset/{id}"
+      - name: "資料集名稱"
+        type: "string"
+        description: "資料集標題"
+      - name: "提供機關"
+        type: "string"
+        description: "資料發布之中央部會或地方政府機關名稱"
+      - name: "檔案格式"
+        type: "string"
+        description: "以分號分隔之資源格式清單（如 CSV;JSON）"
+      - name: "資料下載網址"
+        type: "string"
+        description: "以分號分隔之各資源直接下載連結或 API 網址"
+      - name: "主要欄位說明"
+        type: "string"
+        description: "資料集主要欄位清單描述"
+      - name: "詮釋資料更新時間"
+        type: "datetime"
+        format: "YYYY-MM-DD HH:mm:ss"
+        description: "該資料集詮釋資料最後更新時間"
+
+  - id: "datagov_catalog_export_csv"
+    name: "政府資料開放平臺全站資料集總目錄匯出 (CSV)"
+    category: "平臺詮釋資料"
+    publisher: "數位發展部"
+    source_page: "https://data.gov.tw/"
+    ai_usage_guide: >
+      與 datagov_catalog_export_json 內容相同但為 CSV 表格格式，適合使用 pandas、polars 或 DuckDB 快速篩選全站開放資料清單。
+    tags: ["全站目錄", "CSV匯出", "資料探索"]
+    format: "CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每日更新"
+    endpoint: "/datasets/export/csv"
+    sample_url: "https://data.gov.tw/datasets/export/csv"
+    fields:
+      - name: "資料集識別碼"
+        type: "integer"
+        description: "data.gov.tw 資料集編號"
+      - name: "資料集名稱"
+        type: "string"
+        description: "資料集標題"
+      - name: "服務分類"
+        type: "string"
+        description: "政府服務分類（如公共資訊、交通及通訊、投資理財、就醫）"
+      - name: "提供機關"
+        type: "string"
+        description: "發布機關名稱"
+      - name: "資料下載網址"
+        type: "string"
+        description: "直接下載或介接網址"
+
+  - id: "dgpa_office_calendar_14718"
+    name: "中華民國政府行政機關辦公日曆表"
+    category: "公共資訊"
+    publisher: "行政院人事行政總處"
+    source_page: "https://data.gov.tw/dataset/14718"
+    ai_usage_guide: >
+      當使用者詢問臺灣「國定假日、連假日期、補班日、某天是否上班放假、營業日計算」時必須優先查詢。
+      【重要欄位與資源取得陷阱】
+      1. 「是否放假」欄位值為代碼 "0"（代表要上班）與 "2"（代表放假），並非 0 與 1！
+      2. 人事行政總處每年中公告次年日曆表時會新增隨機產生網址的 CSV 資源，因此本條目提供官方詮釋資料 API
+         作為穩定入口：請先對本端點發送 GET 請求，從 result.distribution 中挑選最新年度
+         （且名稱不含「Google行事曆專用」）的 resourceDownloadUrl 下載 CSV（兩者欄位格式不同，勿混用）。
+    tags: ["行事曆", "國定假日", "連假", "補班日", "上班日", "人事行政總處"]
+    format: "JSON / CSV"
+    encoding: "UTF-8-SIG"
+    method: "GET"
+    update_frequency: "每年更新（遇法規或連假調整時修正）"
+    download_url: "https://data.gov.tw/api/v2/rest/dataset/14718"
+    sample_url: "https://data.gov.tw/api/v2/rest/dataset/14718"
+    fields:
+      - name: "西元日期"
+        type: "string"
+        format: "YYYYMMDD"
+        description: "八碼西元日期字串（如 20270101）"
+      - name: "星期"
+        type: "string"
+        description: "中文星期幾（如 一、二、六、日）"
+      - name: "是否放假"
+        type: "string"
+        description: "放假狀態代碼（0=上班日、2=放假日）"
+      - name: "備註"
+        type: "string"
+        description: "節日名稱、補假或調整上班說明（如 開國紀念日、農曆除夕、補假）"
+
+  - id: "fia_business_tax_registration_9400"
+    name: "全國營業(稅籍)登記資料集"
+    category: "財稅商工"
+    publisher: "財政部財政資訊中心"
+    source_page: "https://data.gov.tw/dataset/9400"
+    ai_usage_guide: >
+      查詢臺灣營業中公司行號、統一編號（統編）反查公司名稱、營業地址、資本額、是否使用統一發票及行業代號時使用。
+      注意：僅含「營業中」稅籍資料（不含歷史停歇業），且完整檔案超過百萬筆（壓縮檔 BGMOPEN1.zip 體積較大），
+      處理時請以串流解壓或分塊讀取 CSV，設立日期為民國年 YYYMMDD 格式。
+    tags: ["統一編號", "公司登記", "稅籍登記", "營業人", "統一發票", "財政部"]
+    format: "CSV / ZIP"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每日更新"
+    download_url: "https://eip.fia.gov.tw/data/BGMOPEN1.zip"
+    sample_url: "https://data.gov.tw/api/v2/rest/dataset/9400"
+    fields:
+      - name: "營業地址"
+        type: "string"
+        description: "營業人登記地址"
+      - name: "統一編號"
+        type: "string"
+        description: "八碼營利事業統一編號"
+      - name: "總機構統一編號"
+        type: "string"
+        description: "總公司八碼統一編號（若本身為總機構則留空或同統編）"
+      - name: "營業人名稱"
+        type: "string"
+        description: "登記公司或商號名稱"
+      - name: "資本額"
+        type: "integer"
+        unit: "TWD"
+        description: "登記資本額（新台幣元）"
+      - name: "設立日期"
+        type: "string"
+        format: "YYYMMDD (民國年)"
+        description: "稅籍設立之民國年月日（如 0950315 代表民國 95 年 3 月 15 日）"
+      - name: "組織別名稱"
+        type: "string"
+        description: "組織型態（如股份有限公司、有限公司、獨資、合夥）"
+      - name: "使用統一發票"
+        type: "string"
+        description: "是否使用統一發票（Y=是、N=否）"
+      - name: "行業代號"
+        type: "string"
+        description: "主行業標準分類六碼代號"
+      - name: "名稱"
+        type: "string"
+        description: "主行業分類中文名稱"
+
+  - id: "twse_stock_day_all_11549"
+    name: "上市個股日成交資訊"
+    category: "投資理財"
+    publisher: "金融監督管理委員會證券期貨局 / 臺灣證券交易所"
+    source_page: "https://data.gov.tw/dataset/11549"
+    ai_usage_guide: >
+      查詢臺灣證券交易所（TWSE）全體上市股票最新交易日之開盤價、最高價、最低價、收盤價、漲跌價差與成交量時使用。
+      注意「日期」欄位為七碼民國年格式（YYYMMDD），且成交股數、成交金額字串可能帶有千分位逗號或雙引號，轉數值前須先清洗。
+    tags: ["台股", "上市股票", "收盤價", "成交量", "TWSE", "證交所"]
+    format: "CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每交易日盤後更新"
+    download_url: "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=open_data"
+    sample_url: "https://www.twse.com.tw/exchangeReport/STOCK_DAY_ALL?response=open_data"
+    fields:
+      - name: "日期"
+        type: "string"
+        format: "YYYMMDD (民國年)"
+        description: "交易日民國年月日（如 1151126）"
+      - name: "證券代號"
+        type: "string"
+        description: "上市股票或 ETF 代號（如 2330、0050）"
+      - name: "證券名稱"
+        type: "string"
+        description: "證券簡稱（如 台積電）"
+      - name: "成交股數"
+        type: "integer"
+        unit: "股"
+        description: "當日總成交股數"
+      - name: "成交金額"
+        type: "integer"
+        unit: "TWD"
+        description: "當日總成交金額（新台幣元）"
+      - name: "開盤價"
+        type: "float"
+        unit: "TWD"
+        description: "當日開盤成交價"
+      - name: "最高價"
+        type: "float"
+        unit: "TWD"
+        description: "當日盤中最高價"
+      - name: "最低價"
+        type: "float"
+        unit: "TWD"
+        description: "當日盤中最低價"
+      - name: "收盤價"
+        type: "float"
+        unit: "TWD"
+        description: "當日收盤價"
+      - name: "漲跌價差"
+        type: "string"
+        description: "與前一日收盤價之漲跌差（可能含 +/- 符號或除權息標記 X）"
+      - name: "成交筆數"
+        type: "integer"
+        unit: "筆"
+        description: "當日總撮合成交筆數"
+
+  - id: "nhi_drug_claim_volume_22131"
+    name: "健保藥品申報量"
+    category: "就醫與醫藥"
+    publisher: "衛生福利部中央健康保險署"
+    source_page: "https://data.gov.tw/dataset/22131"
+    ai_usage_guide: >
+      查詢全民健康保險收載藥品各年度按性別區分之醫令申報數量統計時使用。
+      各年度檔案對應不同 rId 參數，若需歷年完整清單可先查詢 /api/v2/rest/dataset/22131 取得各年度資源網址。
+    tags: ["健保", "藥品申報量", "健保署", "醫療統計", "處方用藥"]
+    format: "CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每年更新"
+    download_url: "https://info.nhi.gov.tw/api/iode0000s01/Dataset?rId=A21030000I-E41005-005"
+    sample_url: "https://info.nhi.gov.tw/api/iode0000s01/Dataset?rId=A21030000I-E41005-005"
+    fields:
+      - name: "費用年"
+        type: "string"
+        format: "YYY (民國年)"
+        description: "統計費用民國年度"
+      - name: "藥品代碼"
+        type: "string"
+        description: "全民健保十碼藥品代碼"
+      - name: "藥品分類分組名稱"
+        type: "string"
+        description: "藥理或給付分類分組名稱"
+      - name: "申報起始年月"
+        type: "string"
+        format: "YYYMM (民國年月)"
+        description: "統計起始民國年月"
+      - name: "申報結束年月"
+        type: "string"
+        format: "YYYMM (民國年月)"
+        description: "統計結束民國年月"
+      - name: "醫令量_男性"
+        type: "float"
+        description: "男性病患一般申報醫令量"
+      - name: "醫令量_女性"
+        type: "float"
+        description: "女性病患一般申報醫令量"
+      - name: "醫令量_合計"
+        type: "float"
+        description: "一般申報醫令量合計"
+      - name: "含包裹支付的醫令量_合計"
+        type: "float"
+        description: "包含論病例計酬等包裹支付在內之總醫令量"
+
+  - id: "moda_cns11643_5961"
+    name: "CNS11643 中文標準交換碼全字庫"
+    category: "公共資訊"
+    publisher: "數位發展部"
+    source_page: "https://data.gov.tw/dataset/5961"
+    ai_usage_guide: >
+      處理臺灣戶政、地政、財稅罕見字、異體字與中文內碼轉換（Unicode、BIG5、電信碼、財稅內碼對照），
+      或需要漢字注音、倉頡、部首、筆畫、部件拆解屬性表時使用。
+      注意：目錄清單檔 OpenDataFilesList.csv 為 BIG5 編碼，屬性壓縮包 Properties.zip 內則為結構化對照文字檔。
+    tags: ["全字庫", "CNS11643", "中文編碼", "罕見字", "注音筆畫", "Unicode對照"]
+    format: "CSV / ZIP"
+    encoding: "BIG5"
+    method: "GET"
+    update_frequency: "不定期更新"
+    download_url: "https://data.cns11643.gov.tw/opendata/Properties.zip"
+    sample_url: "https://data.cns11643.gov.tw/opendata/OpenDataFilesList.csv"
+    fields:
+      - name: "名稱"
+        type: "string"
+        description: "全字庫開放檔案名稱（對應 OpenDataFilesList.csv 索引欄位）"
+      - name: "所屬"
+        type: "string"
+        description: "所屬資料類別（字型、屬性資料或中文碼對照表）"
+      - name: "類別"
+        type: "string"
+        description: "細部對照或字集分類"
+      - name: "說明"
+        type: "string"
+        description: "對照表或屬性檔內容格式說明"

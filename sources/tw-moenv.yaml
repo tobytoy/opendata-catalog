@@ -1,0 +1,822 @@
+# ==========================================
+# 1. 文件版本與維護資訊 (Document Metadata)
+# ==========================================
+catalog_version: "1.0.0"
+schema_version: "1.0"
+last_updated: "2026-11-26T12:55:00+08:00"
+maintainer: "OpenData Catalog Contributors"
+changelog:
+  - version: "1.0.0"
+    date: "2026-11-26"
+    note: "建立環境部環境資料開放平臺初始目錄（依據官方 OpenAPI 規格與資料集頁面詮釋資料整理，涵蓋 10 項核心資料集）"
+
+# ==========================================
+# 2. 資料提供方共用資訊 (Provider Info)
+# ==========================================
+provider:
+  id: "tw-moenv"
+  name: "環境部環境資料開放平臺"
+  summary: "涵蓋全臺即時空氣品質(AQI)、PM2.5、空品預報、紫外線、河川與水庫水質監測、碳足跡排放係數、環保列管事業及廢棄物統計 OpenAPI"
+  organization: "中華民國環境部 (MOENV)"
+  homepage: "https://data.moenv.gov.tw/"
+  docs_url: "https://data.moenv.gov.tw/swagger"
+  base_url: "https://data.moenv.gov.tw/api/v2"
+  license: "政府資料開放授權條款-第1版"
+  license_url: "https://data.gov.tw/license"
+  rate_limit: "註冊會員並帶入 api_key 單一 API 每日上限 5,000 次；無金鑰訪客無法直接取得 /api/v2 回傳資料，大量資料建議搭配 limit 與 offset 分頁查詢"
+  auth:
+    required: true
+    type: "API Key (Query Parameter)"
+    param_name: "api_key"
+    env_vars:
+      - "MOENV_API_KEY"
+    how_to_get: "至 https://data.moenv.gov.tw/api-term 同意 API 介接服務條款並完成會員註冊，即可取得專屬 API Key"
+    notes: >
+      【實測行為與已知限制】
+      1. 實測未帶入或帶入無效 api_key 呼叫 /api/v2/* 時，伺服器會回傳 HTTP 200（Content-Type: text/plain），
+         內文為純文字「api_key 不存在。」而非 HTTP 401，且不會先檢查資料集代碼是否存在；程式端解析 JSON 前務必檢查 Content-Type。
+      2. 官方 OpenAPI 規格（https://data.moenv.gov.tw/swagger/openapi.yaml）於各端點宣告之通用查詢參數為
+         language（zh/en，預設 zh）、offset（預設 0）、limit（預設 1000）與 api_key；各資料集頁面範例另提供 format=json 與 sort 參數。
+      3. 【未帶金鑰實測聲明】因本目錄建立時未持有會員 api_key，尚未實測帶金鑰後之真實 JSON 外層結構與鍵名大小寫；
+         以下 fields[].name 係依環境部各資料集頁面「主要資料欄位」之官方定義列載，實作取欄時建議採不分大小寫兼容處理。
+      4. 請從環境變數 MOENV_API_KEY 讀取金鑰，嚴禁將金鑰寫死於程式碼或提交至版本控制。
+
+# ==========================================
+# 3. 資料集清單與詳細 Metadata (Datasets)
+# ==========================================
+datasets:
+  - id: "aqx_p_432"
+    name: "空氣品質指標(AQI)"
+    category: "大氣環境"
+    publisher: "環境部環境資訊科技司"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/AQX_P_432"
+    ai_usage_guide: >
+      當使用者詢問臺灣各縣市或測站「現在空氣品質好不好、AQI 數值、PM2.5 / PM10 / 臭氧濃度、是否適合戶外運動」時優先查詢。
+      【資料清洗注意】
+      1. 本資料集提供中英文語系資料（OpenAPI 參數 language 預設為 zh；部分匯出可能同時含中文「臺北市」與英文 "Taipei City" 列），
+         統計全臺測站或縣市平均前建議指定 language=zh 並確認語系避免重複計算。
+      2. 測站儀器維護或校正時，汙染物數值欄位可能為空字串 ""，轉數值前須做空值防呆；中文縣市名稱使用正體「臺」。
+    tags: ["空氣品質", "AQI", "PM2.5", "PM10", "臭氧", "即時監測", "空污"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每小時更新"
+    endpoint: "/aqx_p_432"
+    sample_url: "https://data.moenv.gov.tw/api/v2/aqx_p_432?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key（請由環境變數 MOENV_API_KEY 帶入）"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        example: "zh"
+        description: "語系篩選（依官方 OpenAPI 規格：zh 或 en，預設 zh）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        example: "json"
+        description: "回傳格式（資料集頁面範例使用 json，亦支援 csv、xml）"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 100
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        example: 0
+        description: "略過前 N 筆資料（分頁用）"
+      - name: "sort"
+        in: "query"
+        type: "string"
+        required: false
+        example: "ImportDate desc"
+        description: "排序欄位與方向（資料集頁面範例為 ImportDate desc）"
+    fields:
+      - name: "SiteName"
+        type: "string"
+        description: "測站名稱（如：中山、板橋、前鎮）"
+      - name: "County"
+        type: "string"
+        description: "縣市名稱（中文使用正體「臺」如臺北市、臺中市；英文如 Taipei City）"
+      - name: "AQI"
+        type: "integer"
+        unit: "指標值"
+        description: "空氣品質指標（0-50 良好、51-100 普通、101-150 對敏感族群不健康、151-200 對所有族群不健康）"
+      - name: "Pollutant"
+        type: "string"
+        description: "空氣污染指標物（如 NO2、細懸浮微粒；良好時可能為空字串）"
+      - name: "Status"
+        type: "string"
+        description: "空氣品質狀態（如：良好／Good、普通／Moderate）"
+      - name: "PM2.5"
+        type: "float"
+        unit: "μg/m³"
+        description: "細懸浮微粒小時濃度"
+      - name: "PM2.5_AVG"
+        type: "float"
+        unit: "μg/m³"
+        description: "細懸浮微粒移動平均值"
+      - name: "PM10"
+        type: "float"
+        unit: "μg/m³"
+        description: "懸浮微粒小時濃度"
+      - name: "O3"
+        type: "float"
+        unit: "ppb"
+        description: "臭氧小時濃度"
+      - name: "O3_8hr"
+        type: "float"
+        unit: "ppb"
+        description: "臭氧 8 小時移動平均濃度"
+      - name: "publishtime"
+        type: "datetime"
+        format: "YYYY-MM-DD HH:mm"
+        description: "資料發布時間"
+      - name: "Longitude"
+        type: "float"
+        description: "測站經度（WGS84）"
+      - name: "Latitude"
+        type: "float"
+        description: "測站緯度（WGS84）"
+      - name: "SiteId"
+        type: "string"
+        description: "測站編號"
+
+  - id: "aqx_p_02"
+    name: "細懸浮微粒資料(PM2.5)"
+    category: "大氣環境"
+    publisher: "環境部環境資訊科技司"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/AQX_P_02"
+    ai_usage_guide: >
+      當僅需針對細懸浮微粒（PM2.5）單一測項查詢各測站即時濃度時使用。
+      同樣需注意語系（建議指定 language=zh）與維護期間空字串 ""。
+    tags: ["PM2.5", "細懸浮微粒", "空氣污染", "大氣監測"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每小時更新"
+    endpoint: "/aqx_p_02"
+    sample_url: "https://data.moenv.gov.tw/api/v2/aqx_p_02?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        example: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式（json、csv、xml）"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 100
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "Site"
+        type: "string"
+        description: "測站名稱"
+      - name: "county"
+        type: "string"
+        description: "縣市名稱"
+      - name: "PM25"
+        type: "float"
+        unit: "μg/m³"
+        description: "細懸浮微粒濃度（注意此資料集欄位名為 PM25 不含小數點）"
+      - name: "DataCreationDate"
+        type: "datetime"
+        format: "YYYY-MM-DD HH:mm"
+        description: "資料建置日期"
+      - name: "ItemUnit"
+        type: "string"
+        description: "測項單位（μg/m3）"
+
+  - id: "aqf_p_01"
+    name: "空氣品質預報資料"
+    category: "大氣環境"
+    publisher: "環境部環境資訊科技司"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/AQF_P_01"
+    ai_usage_guide: >
+      當使用者詢問「明天或未來幾天空氣品質預報、週末空品好不好、境外污染或沙塵暴預警」時查詢。
+      注意 `aqx_p_432` 為「實測值」，未來預報必須查本資料集（依臺灣各空品區發布）。
+    tags: ["空氣品質預報", "空品區", "AQI預報", "境外污染"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每日定時發布更新"
+    endpoint: "/aqf_p_01"
+    sample_url: "https://data.moenv.gov.tw/api/v2/aqf_p_01?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式（json、csv、xml）"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 30
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "Area"
+        type: "string"
+        description: "空品區名稱（如：北部、竹苗、中部、雲嘉南、高屏、宜蘭、花東、馬祖、金門、澎湖）"
+      - name: "ForecastDate"
+        type: "date"
+        format: "YYYY-MM-DD"
+        description: "預報日期"
+      - name: "AQI"
+        type: "integer"
+        unit: "指標值"
+        description: "空氣品質指標預報值"
+      - name: "MajorPollutant"
+        type: "string"
+        description: "主要污染物名稱"
+      - name: "MinorPollutant"
+        type: "string"
+        description: "次要污染物名稱"
+      - name: "Content"
+        type: "string"
+        description: "預報文字說明"
+      - name: "PublishTime"
+        type: "datetime"
+        description: "發布時間"
+
+  - id: "uv_s_01"
+    name: "紫外線即時監測資料"
+    category: "大氣環境"
+    publisher: "環境部環境資訊科技司"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/UV_S_01"
+    ai_usage_guide: >
+      當使用者詢問「現在紫外線強不強、UVI 指數多少、出門需不需要防曬」時查詢（整合環境部與中央氣象署紫外線測站每小時資料）。
+      【重要格式陷阱】
+      1. 測站儀器異常或夜間無有效值時，`Uvi` 可能回傳 `-999`，計算或呈現前必須過濾 `< 0` 之數值！
+      2. 經緯度欄位 `WGS84_LON` / `WGS84_LAT` 在中央氣象署測站可能為度分秒逗號字串（如 `"121,30,53"`），而在環境部鹿林山站為十進位小數（如 `"120.85985238"`），空間繪圖前須統一轉換。
+    tags: ["紫外線", "UVI", "防曬", "即時監測"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每小時更新"
+    endpoint: "/uv_s_01"
+    sample_url: "https://data.moenv.gov.tw/api/v2/uv_s_01?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 50
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "SiteName"
+        type: "string"
+        description: "紫外線測站名稱（如：臺北、板橋、鹿林山、玉山）"
+      - name: "Uvi"
+        type: "float"
+        unit: "UVI 指數"
+        description: "紫外線指數（0-2 低量級、3-5 中量級、6-7 高量級、8-10 過量級、11+ 危險級；-999 代表無效值）"
+      - name: "Unit"
+        type: "string"
+        description: "發布單位（如：中央氣象署、環境部）"
+      - name: "County"
+        type: "string"
+        description: "縣市名稱"
+      - name: "WGS84_LON"
+        type: "string"
+        description: "WGS84 經度（可能為度分秒逗號格式如 121,30,53 或十進位經度）"
+      - name: "WGS84_LAT"
+        type: "string"
+        description: "WGS84 緯度（可能為度分秒逗號格式如 25,02,16 或十進位緯度）"
+      - name: "DataCreationDate"
+        type: "datetime"
+        description: "資料發佈時間"
+
+  - id: "cfp_p_02"
+    name: "碳足跡排放係數"
+    category: "氣候變遷因應"
+    publisher: "環境部氣候變遷署"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/CFP_P_02"
+    ai_usage_guide: >
+      環境部平臺高頻熱門資料集。當使用者進行 ESG 溫室氣體盤查、產品碳足跡計算、查詢臺灣電力／汽柴油／原物料／包材之官方碳排係數（kgCO2e）時優先使用。
+      【官方欄位拼字注意】範疇三欄位在官方資料結構中拼寫為 `Scpoe3_iso` 與 `Scpoe3_ghg`（`Scpoe3` 而非 `Scope3`），程式存取鍵名時請務必照實對應。
+    tags: ["碳足跡", "排放係數", "溫室氣體盤查", "ESG", "ISO14064", "GHG Protocol", "淨零排放"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "隨產品碳足跡資訊網審查公告更新"
+    endpoint: "/cfp_p_02"
+    sample_url: "https://data.moenv.gov.tw/api/v2/cfp_p_02?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 1000
+        description: "回傳筆數上限（目前約 1,188 筆，可設 limit=1000 搭配 offset 分兩頁取完）"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁起始位移"
+    fields:
+      - name: "name"
+        type: "string"
+        description: "係數名稱（如：電力碳足跡、車用汽油、瓦楞紙板）"
+      - name: "Coe"
+        type: "float"
+        unit: "kgCO2e"
+        description: "碳足跡數值（kgCO2e）"
+      - name: "Unit"
+        type: "string"
+        description: "宣告單位（如：度(kwh)、公升(L)、公斤(kg)、平方公尺(m2)）"
+      - name: "DepartmentName"
+        type: "string"
+        description: "政府部門/公司名稱（選擇性揭露）"
+      - name: "AnnouncementYear"
+        type: "string"
+        format: "YYYY"
+        description: "公告年份"
+      - name: "Scpoe3_iso"
+        type: "string"
+        description: "範疇三盤查適用類別依循【ISO14064_1】（注意官方欄位拼字為 Scpoe3_iso）"
+      - name: "Scpoe3_ghg"
+        type: "string"
+        description: "範疇三盤查適用類別【依循GHG Protocol】（注意官方欄位拼字為 Scpoe3_ghg）"
+
+  - id: "wqx_p_01"
+    name: "河川水質監測資料"
+    category: "流域與水質"
+    publisher: "環境部環境資訊科技司"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/WQX_P_01"
+    ai_usage_guide: >
+      查詢臺灣各主要河川與流域之每月採樣水質檢測結果，包含河川污染分類指標 (RPI)、溶氧 (DO)、生化需氧量 (BOD5)、化學需氧量 (COD)、氨氮、懸浮固體與重金屬。
+      【結構注意】本表採用「長表（Long Format）」結構：同一個測站同一次採樣會拆成多列，每列代表一個測項（`ItemName` / `ItemEngAbbreviation`），
+      且未檢出或未測項目之 `ItemValue` 可能為 `"-"` 或 `"<0.01"`；因需實驗室品保程序，通常隔月發布上月數據。
+    tags: ["河川水質", "水污染", "RPI", "溶氧量", "流域監測"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每月更新（隔月發布）"
+    endpoint: "/wqx_p_01"
+    sample_url: "https://data.moenv.gov.tw/api/v2/wqx_p_01?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 100
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "SiteId"
+        type: "string"
+        description: "測站代碼"
+      - name: "SiteName"
+        type: "string"
+        description: "測站名稱（常以橋樑命名，如永安橋、中正橋）"
+      - name: "County"
+        type: "string"
+        description: "縣市名稱（使用正體「臺」）"
+      - name: "Basin"
+        type: "string"
+        description: "流域名稱（如淡水河流域、鹽水溪流域）"
+      - name: "River"
+        type: "string"
+        description: "河川名稱"
+      - name: "SampleDate"
+        type: "datetime"
+        format: "YYYY-MM-DD HH:mm:ss"
+        description: "採樣日期"
+      - name: "ItemName"
+        type: "string"
+        description: "測項名稱（如：河川污染分類指標、溶氧(電極法)、生化需氧量、氨氮）"
+      - name: "ItemEngAbbreviation"
+        type: "string"
+        description: "測項英文簡稱（如：RPI、DO、BOD5、COD、NH3_N、pH）"
+      - name: "ItemValue"
+        type: "string"
+        description: "監測值字串（RPI <=2.0 未/稍受污染、2.1-3.0 輕度、3.1-6.0 中度、>6.0 嚴重污染；可能含 '-' 或 '<' 符號）"
+      - name: "ItemUnit"
+        type: "string"
+        description: "測項單位（如 mg/L、CFU/100mL、℃）"
+
+  - id: "wqx_p_03"
+    name: "水庫水質監測資料"
+    category: "流域與水質"
+    publisher: "環境部環境資訊科技司"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/WQX_P_03"
+    ai_usage_guide: >
+      查詢全臺各主要水庫（如翡翠水庫、石門水庫、曾文水庫、日月潭水庫）每季分水層採樣之水質與「卡爾森優養指數（CTSI）」。
+      同為長表結構（以 `ItemEngAbbreviation` 篩選 `"CTSI"` 可判斷水庫優養化程度：CTSI < 40 貧養、40-50 普養、> 50 優養）。
+    tags: ["水庫水質", "優養化", "卡爾森指數", "CTSI", "飲用水源"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每季更新（隔月發布）"
+    endpoint: "/wqx_p_03"
+    sample_url: "https://data.moenv.gov.tw/api/v2/wqx_p_03?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 100
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "DamName"
+        type: "string"
+        description: "水庫名稱（如：翡翠水庫、石門水庫）"
+      - name: "SiteName"
+        type: "string"
+        description: "測站名稱"
+      - name: "County"
+        type: "string"
+        description: "縣市名稱"
+      - name: "SampleDate"
+        type: "datetime"
+        format: "YYYY-MM-DD HH:mm:ss"
+        description: "採樣日期"
+      - name: "SampleLayer"
+        type: "string"
+        description: "採樣水層（如：表水、中層、底水）"
+      - name: "SampleDepth"
+        type: "string"
+        unit: "m"
+        description: "採樣深度（公尺）"
+      - name: "ItemName"
+        type: "string"
+        description: "測項名稱（如：卡爾森指數、透明度、總磷）"
+      - name: "ItemEngAbbreviation"
+        type: "string"
+        description: "測項英文簡稱（如：CTSI、SD、TP）"
+      - name: "ItemValue"
+        type: "string"
+        description: "監測值字串（可能含 '-' 或 '<0.01'）"
+      - name: "ItemUnit"
+        type: "string"
+        description: "測項單位"
+
+  - id: "ems_s_01"
+    name: "環境保護許可管理系統(暨解除列管)對象基本資料"
+    category: "污染防治與列管"
+    publisher: "環境部資源循環署"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/EMS_S_01"
+    ai_usage_guide: >
+      查詢全臺工廠或事業單位是否屬於環境部「空污、水污、事業廢棄物、毒化物、土壤污染」列管對象（或歷史解除列管紀錄）、環保管制編號 (`EmsNo`) 與廠址座標。
+      可透過 `UniformNo`（八碼營利事業統一編號）與 `tw-data-gov` 的全國營業稅籍登記資料進行跨部會企業 ESG / 合規勾稽。
+    tags: ["環保列管", "工廠列管", "管制編號", "污染源", "ESG盡職調查", "統一編號"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "定期更新"
+    endpoint: "/ems_s_01"
+    sample_url: "https://data.moenv.gov.tw/api/v2/ems_s_01?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 50
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "EmsNo"
+        type: "string"
+        description: "管制編號"
+      - name: "FacilityName"
+        type: "string"
+        description: "事業名稱"
+      - name: "UniformNo"
+        type: "string"
+        description: "營利事業統一編號"
+      - name: "County"
+        type: "string"
+        description: "縣市"
+      - name: "FacilityAddress"
+        type: "string"
+        description: "實際廠（場）地址"
+      - name: "IndustryName"
+        type: "string"
+        description: "行業別名稱"
+      - name: "WGS84Lon"
+        type: "float"
+        description: "經度（WGS84）"
+      - name: "WGS84Lat"
+        type: "float"
+        description: "緯度（WGS84）"
+      - name: "IsAir"
+        type: "string"
+        description: "是否空列管"
+      - name: "IsWater"
+        type: "string"
+        description: "是否水列管"
+      - name: "IsWaste"
+        type: "string"
+        description: "是否廢棄物列管"
+      - name: "IsToxic"
+        type: "string"
+        description: "是否毒化物列管"
+      - name: "IsSoil"
+        type: "string"
+        description: "是否土壤列管"
+
+  - id: "wr_s_02"
+    name: "應回收廢棄物回收業者資料"
+    category: "資源循環"
+    publisher: "環境部資源循環署"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/WR_S_02"
+    ai_usage_guide: >
+      查詢全臺合法登記之應回收廢棄物回收業者名單、統一編號、貯存場址與可回收項目（如廢機動車輛、廢電子電器、廢資訊物品、廢乾電池、廢塑膠／玻璃／紙容器等）。
+    tags: ["資源回收", "回收業者", "廢棄物清理", "廢家電回收", "廢車回收"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每年或異動時更新"
+    endpoint: "/wr_s_02"
+    sample_url: "https://data.moenv.gov.tw/api/v2/wr_s_02?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 100
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "Year"
+        type: "string"
+        format: "YYYY"
+        description: "年度"
+      - name: "FactoryName"
+        type: "string"
+        description: "事業名稱"
+      - name: "ban"
+        type: "string"
+        description: "統一編號"
+      - name: "DetailAddr"
+        type: "string"
+        description: "事業地址"
+      - name: "SaveAddr"
+        type: "string"
+        description: "貯存地址"
+      - name: "RegistNo"
+        type: "string"
+        description: "登記證證號"
+      - name: "ItemName"
+        type: "string"
+        description: "回收材質種類"
+
+  - id: "stat_p_126"
+    name: "全國一般廢棄物產生量"
+    category: "資源循環"
+    publisher: "環境部統計處"
+    source_page: "https://data.moenv.gov.tw/dataset/detail/STAT_P_126"
+    ai_usage_guide: >
+      查詢臺灣歷年或各統計期之全國一般廢棄物總產生量、一般垃圾量、資源回收量、廚餘量，以及「平均每人每日垃圾產生量」。
+      注意單位差異：`value1` 至 `value4` 單位為「公噸」，唯獨 `value5`（平均每人每日一般廢棄物產生量）單位為「公斤」。
+    tags: ["垃圾量", "一般廢棄物", "資源回收量", "廚餘統計", "環境統計"]
+    format: "JSON / CSV"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "定期統計更新"
+    endpoint: "/stat_p_126"
+    sample_url: "https://data.moenv.gov.tw/api/v2/stat_p_126?limit=1&format=json"
+    parameters:
+      - name: "api_key"
+        in: "query"
+        type: "string"
+        required: true
+        description: "環境部開放平臺會員 API Key"
+      - name: "language"
+        in: "query"
+        type: "string"
+        required: false
+        default: "zh"
+        description: "語系篩選（zh 或 en）"
+      - name: "format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "json"
+        description: "回傳格式"
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 1000
+        example: 100
+        description: "回傳筆數上限"
+      - name: "offset"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 0
+        description: "分頁位移"
+    fields:
+      - name: "item1"
+        type: "string"
+        description: "統計期"
+      - name: "value1"
+        type: "float"
+        unit: "公噸"
+        description: "總產生量"
+      - name: "value2"
+        type: "float"
+        unit: "公噸"
+        description: "一般垃圾量"
+      - name: "value3"
+        type: "float"
+        unit: "公噸"
+        description: "資源垃圾量"
+      - name: "value4"
+        type: "float"
+        unit: "公噸"
+        description: "廚餘量"
+      - name: "value5"
+        type: "float"
+        unit: "公斤"
+        description: "平均每人每日一般廢棄物產生量"

@@ -1,0 +1,47 @@
+name: Weekly Endpoint Health Check
+
+on:
+  schedule:
+    # Runs every Monday at 04:00 UTC+8 (Sunday 20:00 UTC)
+    - cron: "0 20 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  health-check:
+    name: Probe Open Data Endpoints
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run live URL health check
+        id: probe
+        continue-on-error: true
+        run: python scripts/validate.py --check-urls 2>&1 | tee health-check.log
+
+      - name: Open issue on failure
+        if: steps.probe.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="[Health Check] 開放資料端點巡檢異常回報"
+          EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+          BODY=$(printf "### 自動化定期巡檢偵測到開放資料網址或結構異常\n\n請維護者檢查對應的 \`sources/*.yaml\` 端點是否改版或失效：\n\n\`\`\`text\n%s\n\`\`\`\n" "$(tail -n 80 health-check.log)")
+          if [[ -n "$EXISTING" ]]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi

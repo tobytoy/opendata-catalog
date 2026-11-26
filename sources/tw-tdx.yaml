@@ -1,0 +1,759 @@
+# ==========================================
+# 1. 文件版本與維護資訊 (Document Metadata)
+# ==========================================
+catalog_version: "1.0.0"
+schema_version: "1.0"
+last_updated: "2026-11-26T12:00:00+08:00"
+maintainer: "OpenData Catalog Contributors"
+changelog:
+  - version: "1.0.0"
+    date: "2026-11-26"
+    note: "建立交通部 TDX 運輸資料流通服務平臺初始目錄，涵蓋臺鐵(v3)、高鐵(v2)、公車、捷運、公共自行車、國道路況與停車場核心 API"
+
+# ==========================================
+# 2. 資料提供方共用資訊 (Provider Info)
+# ==========================================
+provider:
+  id: "tw-tdx"
+  name: "交通部 TDX 運輸資料流通服務平臺"
+  summary: "涵蓋全臺臺鐵、高鐵、市區公車、公路客運、捷運、公共自行車(YouBike)、國道即時路況與停車場動靜態 OData API"
+  organization: "中華民國交通部"
+  homepage: "https://tdx.transportdata.tw/"
+  docs_url: "https://tdx.transportdata.tw/api-service/swagger"
+  base_url: "https://tdx.transportdata.tw/api/basic"
+  license: "政府資料開放授權條款 / 創用 CC 姓名標示 4.0 國際授權條款 (須顯名標示來源為交通部 TDX 平臺)"
+  license_url: "https://tdx.transportdata.tw/term"
+  rate_limit: "訪客模式限基礎服務且每 IP 每日上限 20 次；基礎會員免費額度每月合計 3 點（約 3,000 次），高頻呼叫請訂閱方案並快取 Access Token"
+  auth:
+    required: true
+    type: "OAuth2 Client Credentials (Bearer Token)"
+    token_url: "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token"
+    header_name: "Authorization"
+    env_vars:
+      - "TDX_CLIENT_ID"
+      - "TDX_CLIENT_SECRET"
+    how_to_get: "至 TDX 官網註冊會員後，前往「會員中心 -> 資料服務 -> API 金鑰」建立應用程式即可取得 Client Id 與 Client Secret"
+    notes: >
+      以 POST application/x-www-form-urlencoded 傳送 grant_type=client_credentials、client_id 與 client_secret
+      換取 access_token（預設效期約 86400 秒），後續呼叫 API 時於 HTTP Header 帶入 Authorization: Bearer <access_token>。
+      切勿將金鑰硬編碼於程式碼或公開倉庫中，請透過環境變數讀取並實作 Token 快取。
+
+# ==========================================
+# 3. 資料集清單與詳細 Metadata (Datasets)
+# ==========================================
+datasets:
+  - id: "tra_v3_station"
+    name: "臺鐵車站基本資料 (v3)"
+    category: "軌道運輸"
+    publisher: "國營臺灣鐵路股份有限公司"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢全臺臺鐵車站代碼 (StationID)、中英文站名、經緯度座標與車站地址時使用。
+      注意：臺鐵 API 已升級至 v3，回傳根結構為 JSON 物件（Stations 陣列包在頂層物件內）。
+      請先透過本端點搭配 OData $filter（如 contains(StationName/Zh_tw,'臺北')）查詢取得正確 StationID；
+      注意臺鐵與高鐵車站代碼各自獨立（例如高鐵 0990 為南港、1000 為台北，臺鐵站碼與高鐵不同，切勿混用）。
+    tags: ["臺鐵", "TRA", "火車站", "車站代碼", "軌道運輸"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每月或異動時更新"
+    endpoint: "/v3/Rail/TRA/Station"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?$top=1&$format=JSON"
+    parameters:
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "contains(StationName/Zh_tw,'臺北')"
+        description: "OData 條件篩選語法（注意站名常使用正體「臺」字，如臺北、臺中、臺南）"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 30
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳資料格式（JSON 或 XML）"
+    fields:
+      - name: "Stations"
+        type: "array"
+        description: "臺鐵車站清單陣列（位於回傳物件頂層）"
+      - name: "Stations[].StationUID"
+        type: "string"
+        description: "TDX 跨系統唯一車站識別碼（如 TRA-0900）"
+      - name: "Stations[].StationID"
+        type: "string"
+        description: "臺鐵車站代碼（供時刻表、即時看板與票價 API 串接使用）"
+      - name: "Stations[].StationName"
+        type: "object"
+        description: "多語系站名物件，含 Zh_tw（繁體中文）與 En（英文）"
+      - name: "Stations[].StationPosition"
+        type: "object"
+        description: "車站經緯度座標物件，含 PositionLon（經度）與 PositionLat（緯度）"
+      - name: "Stations[].StationAddress"
+        type: "string"
+        description: "車站完整地址"
+
+  - id: "tra_v3_station_liveboard"
+    name: "臺鐵車站別列車即時到離站電子看板 (v3)"
+    category: "軌道運輸"
+    publisher: "國營臺灣鐵路股份有限公司"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      當使用者詢問「現在火車有沒有誤點、下一班臺鐵幾點到、某火車站即時看板」時優先呼叫。
+      回傳結果位於頂層 StationLiveBoards 陣列中，DelayTime 單位為分鐘（0 代表準點）。
+    tags: ["臺鐵", "TRA", "即時看板", "誤點", "列車動態"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每 30 至 60 秒更新"
+    endpoint: "/v3/Rail/TRA/StationLiveBoard"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationLiveBoard?$top=1&$format=JSON"
+    parameters:
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "StationID eq '1000'"
+        description: "依車站代碼或車次篩選，例如 StationID eq '1000' 或 TrainNo eq '111'"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 20
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "回傳格式（建議固定帶 JSON）"
+    fields:
+      - name: "StationLiveBoards"
+        type: "array"
+        description: "即時列車到離站看板陣列"
+      - name: "StationLiveBoards[].StationID"
+        type: "string"
+        description: "車站代碼"
+      - name: "StationLiveBoards[].TrainNo"
+        type: "string"
+        description: "車次代碼（如 2154、111）"
+      - name: "StationLiveBoards[].Direction"
+        type: "integer"
+        description: "行駛方向（0=順行、1=逆行）"
+      - name: "StationLiveBoards[].TrainTypeName"
+        type: "object"
+        description: "車種名稱物件（Zh_tw 如自強、普悠瑪、區間快、區間）"
+      - name: "StationLiveBoards[].ScheduledArrivalTime"
+        type: "string"
+        format: "HH:mm:ss"
+        description: "表定到站時間"
+      - name: "StationLiveBoards[].ScheduledDepartureTime"
+        type: "string"
+        format: "HH:mm:ss"
+        description: "表定離站時間"
+      - name: "StationLiveBoards[].DelayTime"
+        type: "integer"
+        unit: "分鐘"
+        description: "列車誤點分鐘數（0 表示準點）"
+
+  - id: "tra_v3_daily_timetable"
+    name: "臺鐵當日列車時刻表 (v3)"
+    category: "軌道運輸"
+    publisher: "國營臺灣鐵路股份有限公司"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢今日全臺臺鐵實際運行班次（含加班車並扣除停駛班次）與各站停靠發抵時刻時使用。
+      若需查詢特定未來日期，可改呼叫 /v3/Rail/TRA/DailyTrainTimetable/TrainDate/{TrainDate}（YYYY-MM-DD）。
+    tags: ["臺鐵", "TRA", "時刻表", "火車班次"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每日更新"
+    endpoint: "/v3/Rail/TRA/DailyTrainTimetable/Today"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/Today?$top=1&$format=JSON"
+    parameters:
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "TrainInfo/TrainNo eq '111'"
+        description: "OData 篩選條件（如篩選車次代碼或方向）"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 10
+        description: "回傳車次筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "回傳格式"
+    fields:
+      - name: "TrainDate"
+        type: "date"
+        format: "YYYY-MM-DD"
+        description: "時刻表適用乘車日期"
+      - name: "TrainTimetables"
+        type: "array"
+        description: "當日所有車次時刻表陣列"
+      - name: "TrainTimetables[].TrainInfo"
+        type: "object"
+        description: "車次基本資訊（含 TrainNo、Direction、TrainTypeName、StartingStationName、EndingStationName）"
+      - name: "TrainTimetables[].StopTimes"
+        type: "array"
+        description: "沿途停靠站序陣列（含 StopSequence、StationID、StationName、ArrivalTime、DepartureTime）"
+
+  - id: "thsr_v2_station"
+    name: "台灣高鐵車站基本資料 (v2)"
+    category: "軌道運輸"
+    publisher: "台灣高速鐵路股份有限公司"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢台灣高鐵全線 12 座車站代碼（如 0990 南港、1000 台北、1010 板橋、1020 桃園、1030 新竹、1040 台中、1070 左營）
+      與座標位置時使用。回傳頂層即為 JSON 陣列。
+    tags: ["高鐵", "THSR", "車站代碼", "軌道運輸"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "異動時更新"
+    endpoint: "/v2/Rail/THSR/Station"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?$top=1&$format=JSON"
+    parameters:
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "StationUID"
+        type: "string"
+        description: "高鐵車站唯一識別碼（如 THSR-0990）"
+      - name: "StationID"
+        type: "string"
+        description: "高鐵車站代碼（如 0990=南港、1000=台北、1070=左營）"
+      - name: "StationCode"
+        type: "string"
+        description: "英文三碼站碼（如 NAK、TPE、ZUY）"
+      - name: "StationName"
+        type: "object"
+        description: "多語系站名物件（Zh_tw、En）"
+      - name: "StationPosition"
+        type: "object"
+        description: "經緯度座標物件（PositionLon、PositionLat）"
+      - name: "LocationCity"
+        type: "string"
+        description: "所在縣市名稱"
+
+  - id: "thsr_v2_daily_timetable"
+    name: "台灣高鐵當日車次時刻表 (v2)"
+    category: "軌道運輸"
+    publisher: "台灣高速鐵路股份有限公司"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢今日台灣高鐵南下/北上全部運行車次與各站到離時間。
+      若需查詢特定起迄站某日班表，可改用 /v2/Rail/THSR/DailyTimetable/OD/{OriginStationID}/to/{DestinationStationID}/{TrainDate}。
+    tags: ["高鐵", "THSR", "時刻表", "雙鐵班次"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每日更新"
+    endpoint: "/v2/Rail/THSR/DailyTimetable/Today"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/Today?$top=1&$format=JSON"
+    parameters:
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "DailyTrainInfo/Direction eq 0"
+        description: "OData 篩選條件（Direction 0=南下、1=北上）"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 20
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "TrainDate"
+        type: "date"
+        format: "YYYY-MM-DD"
+        description: "乘車日期"
+      - name: "DailyTrainInfo"
+        type: "object"
+        description: "車次摘要物件（含 TrainNo、Direction、StartingStationName、EndingStationName）"
+      - name: "StopTimes"
+        type: "array"
+        description: "停靠站時刻陣列（含 StopSequence、StationID、StationName、ArrivalTime、DepartureTime）"
+
+  - id: "thsr_v2_od_fare"
+    name: "台灣高鐵起迄站票價資料 (v2)"
+    category: "軌道運輸"
+    publisher: "台灣高速鐵路股份有限公司"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢台灣高鐵任意兩站之間的標準車廂、商務車廂與自由座各票種票價時使用。
+      需先透過 thsr_v2_station 確認起點與終點的四碼 StationID（如 1000 台北至 1070 左營）。
+    tags: ["高鐵", "THSR", "票價", "車資查詢"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "票價調整時更新"
+    endpoint: "/v2/Rail/THSR/ODFare/{OriginStationID}/to/{DestinationStationID}"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare/0990/to/1000?$format=JSON"
+    parameters:
+      - name: "OriginStationID"
+        in: "path"
+        type: "string"
+        required: true
+        example: "0990"
+        description: "起程站四碼代碼（如 0990 南港、1000 台北）"
+      - name: "DestinationStationID"
+        in: "path"
+        type: "string"
+        required: true
+        example: "1000"
+        description: "到達站四碼代碼（如 1040 台中、1070 左營）"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "OriginStationID"
+        type: "string"
+        description: "起程站代碼"
+      - name: "DestinationStationID"
+        type: "string"
+        description: "到達站代碼"
+      - name: "Fares"
+        type: "array"
+        description: "各艙等與票種票價陣列（含 TicketType、FareClass、CabinClass、Price）"
+      - name: "Fares[].CabinClass"
+        type: "integer"
+        description: "車廂艙等代碼（1=標準對號座、2=商務車廂、3=自由座）"
+      - name: "Fares[].Price"
+        type: "integer"
+        unit: "TWD"
+        description: "新台幣票價金額"
+
+  - id: "bus_v2_eta_city"
+    name: "各縣市市區公車預估到站資料 (v2)"
+    category: "公車客運"
+    publisher: "各直轄市及縣市政府交通局"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      當使用者詢問某縣市市區公車（如臺北市 307、高雄市紅27）「還要幾分鐘到站、末班車過了沒」時優先查詢。
+      路徑參數 {City} 必須使用 TDX 標準英文縣市名（PascalCase，如 Taipei、NewTaipei、Taoyuan、Taichung、Tainan、Kaohsiung）。
+      注意 EstimateTime 單位為「秒」，且當 EstimateTime 為空值時必須檢查 StopStatus 判斷未發車或末班已過。
+    tags: ["公車", "市區公車", "預估到站", "ETA", "公車動態"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每 15 至 30 秒更新"
+    endpoint: "/v2/Bus/EstimatedTimeOfArrival/City/{City}"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei?$top=1&$format=JSON"
+    parameters:
+      - name: "City"
+        in: "path"
+        type: "string"
+        required: true
+        example: "Taipei"
+        description: "縣市英文代碼（如 Taipei、NewTaipei、Taoyuan、Taichung、Tainan、Kaohsiung、Hsinchu、Keelung）"
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "RouteName/Zh_tw eq '307'"
+        description: "OData 篩選路線或站牌名稱"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 30
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "StopUID"
+        type: "string"
+        description: "站牌唯一識別碼"
+      - name: "StopName"
+        type: "object"
+        description: "站牌中英文名稱（Zh_tw、En）"
+      - name: "RouteName"
+        type: "object"
+        description: "路線名稱物件（Zh_tw 如 307、藍5）"
+      - name: "Direction"
+        type: "integer"
+        description: "去返程方向（0=去程、1=返程、2=迴圈、255=未知）"
+      - name: "EstimateTime"
+        type: "integer"
+        unit: "秒"
+        description: "距離到站預估秒數（無值或未發車時可能省略或為 null）"
+      - name: "StopStatus"
+        type: "integer"
+        description: "車輛狀態碼（0=正常、1=尚未發車、2=交管不停靠、3=末班車已過、4=今日未營運）"
+      - name: "UpdateTime"
+        type: "datetime"
+        format: "ISO 8601"
+        description: "平臺資料更新時間"
+
+  - id: "bus_v2_route_city"
+    name: "各縣市市區公車路線資料 (v2)"
+    category: "公車客運"
+    publisher: "各直轄市及縣市政府交通局"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢各縣市市區公車的起訖站、營運客運業者、首末班車時間與附屬路線代碼時使用。
+    tags: ["公車", "公車路線", "首末班車", "客運業者"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每日或路線異動時更新"
+    endpoint: "/v2/Bus/Route/City/{City}"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Bus/Route/City/Taipei?$top=1&$format=JSON"
+    parameters:
+      - name: "City"
+        in: "path"
+        type: "string"
+        required: true
+        example: "Taipei"
+        description: "縣市英文代碼（如 Taipei、NewTaipei、Taichung）"
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "contains(RouteName/Zh_tw,'307')"
+        description: "依路線名稱關鍵字過濾"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 20
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "RouteUID"
+        type: "string"
+        description: "公車路線跨系統唯一識別碼"
+      - name: "RouteName"
+        type: "object"
+        description: "路線中英文名稱物件（Zh_tw、En）"
+      - name: "Operators"
+        type: "array"
+        description: "營運客運業者清單"
+      - name: "SubRoutes"
+        type: "array"
+        description: "附屬路線與平假日首末班車時刻（含 FirstBusTime、LastBusTime）"
+      - name: "DepartureStopNameZh"
+        type: "string"
+        description: "起站中文名稱"
+      - name: "DestinationStopNameZh"
+        type: "string"
+        description: "訖站中文名稱"
+
+  - id: "metro_v2_liveboard"
+    name: "捷運車站即時到離站電子看板 (v2)"
+    category: "軌道運輸"
+    publisher: "各捷運營運機構"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢臺北捷運 (TRTC)、高雄捷運 (KRTC)、桃園機場捷運 (TYMC)、高雄輕軌 (KLRT) 等系統各月台下一班列車進站倒數秒數。
+    tags: ["捷運", "MRT", "即時到站", "北捷", "高捷", "機捷"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每 15 至 30 秒更新"
+    endpoint: "/v2/Rail/Metro/LiveBoard/{RailSystem}"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro/LiveBoard/TRTC?$top=1&$format=JSON"
+    parameters:
+      - name: "RailSystem"
+        in: "path"
+        type: "string"
+        required: true
+        example: "TRTC"
+        description: "捷運系統代碼（TRTC=臺北捷運、KRTC=高雄捷運、TYMC=桃園機場捷運、KLRT=高雄輕軌）"
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "StationID eq 'BL12'"
+        description: "依捷運車站代碼或路線代碼篩選"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 20
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "LineID"
+        type: "string"
+        description: "捷運路線代碼（如 BL 板南線、R 淡水信義線）"
+      - name: "StationID"
+        type: "string"
+        description: "捷運車站代碼（如 BL11 西門、BL12 台北車站）"
+      - name: "StationName"
+        type: "object"
+        description: "多語系站名物件（Zh_tw、En）"
+      - name: "TripHeadSign"
+        type: "string"
+        description: "列車行駛方向標示（如「往亞東醫院」）"
+      - name: "DestinationStationName"
+        type: "object"
+        description: "終點站名稱物件"
+      - name: "EstimateTime"
+        type: "integer"
+        unit: "秒"
+        description: "預估到站秒數（0 代表列車進站中）"
+
+  - id: "bike_v2_station_city"
+    name: "公共自行車場站基本資料 (v2)"
+    category: "綠色運輸"
+    publisher: "各縣市政府交通局"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢各縣市 YouBike 租借站名稱、地址、經緯度座標與總車柱容量。
+      注意：此端點僅含靜態站點資訊，不含即時可借車數；請以 StationUID 與 bike_v2_availability_city 進行關聯 (Join)。
+    tags: ["公共自行車", "YouBike", "單車租借站", "綠色運輸"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每日更新"
+    endpoint: "/v2/Bike/Station/City/{City}"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Bike/Station/City/Taipei?$top=1&$format=JSON"
+    parameters:
+      - name: "City"
+        in: "path"
+        type: "string"
+        required: true
+        example: "Taipei"
+        description: "縣市英文代碼（如 Taipei、NewTaipei、Taoyuan、Taichung、Tainan、Kaohsiung）"
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "contains(StationName/Zh_tw,'科技大樓')"
+        description: "依站點名稱或 Geo 空間範圍篩選"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 30
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "StationUID"
+        type: "string"
+        description: "跨系統唯一場站識別碼（與即時車位 API Join 之主鍵）"
+      - name: "StationName"
+        type: "object"
+        description: "場站中英文名稱（如 YouBike2.0_捷運科技大樓站）"
+      - name: "StationPosition"
+        type: "object"
+        description: "場站經緯度座標（PositionLon、PositionLat）"
+      - name: "StationAddress"
+        type: "object"
+        description: "場站中英文地址"
+      - name: "BikesCapacity"
+        type: "integer"
+        unit: "車柱"
+        description: "場站可停放總車位數"
+      - name: "ServiceType"
+        type: "integer"
+        description: "系統版本（1=YouBike 1.0、2=YouBike 2.0）"
+
+  - id: "bike_v2_availability_city"
+    name: "公共自行車即時車位與可借車數資料 (v2)"
+    category: "綠色運輸"
+    publisher: "各縣市政府交通局"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      當使用者詢問「附近 YouBike 還有沒有車可以借、有沒有空位可以還、有沒有 YouBike 2.0E 電輔車」時查詢。
+      可用 AvailableRentBikesDetail 區分一般車 (GeneralBikes) 與電輔車 (ElectricBikes) 數量，並透過 StationUID 對照場站名稱與座標。
+    tags: ["公共自行車", "YouBike", "即時車位", "電輔車", "YouBike2.0E"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每 1 分鐘更新"
+    endpoint: "/v2/Bike/Availability/City/{City}"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Bike/Availability/City/Taipei?$top=1&$format=JSON"
+    parameters:
+      - name: "City"
+        in: "path"
+        type: "string"
+        required: true
+        example: "Taipei"
+        description: "縣市英文代碼（如 Taipei、NewTaipei、Taoyuan、Taichung、Tainan、Kaohsiung）"
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "StationUID eq 'TPE500101001'"
+        description: "依 StationUID 或可借車數條件篩選（如 AvailableRentBikes gt 0）"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 30
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "StationUID"
+        type: "string"
+        description: "跨系統唯一場站識別碼（對應 bike_v2_station_city.StationUID）"
+      - name: "ServiceStatus"
+        type: "integer"
+        description: "營運狀態（0=停止營運、1=正常營運、2=暫停營運）"
+      - name: "AvailableRentBikes"
+        type: "integer"
+        unit: "輛"
+        description: "目前可借用自行車總數"
+      - name: "AvailableReturnBikes"
+        type: "integer"
+        unit: "席"
+        description: "目前可歸還空車柱總數"
+      - name: "AvailableRentBikesDetail"
+        type: "object"
+        description: "可借車種細項物件，含 GeneralBikes（一般車）與 ElectricBikes（2.0E 電輔車）"
+      - name: "UpdateTime"
+        type: "datetime"
+        format: "ISO 8601"
+        description: "平臺資料更新時間"
+
+  - id: "road_v2_freeway_live"
+    name: "國道高速公路即時路況與旅行速率 (v2)"
+    category: "路況資訊"
+    publisher: "交通部高速公路局"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      查詢國道高速公路各檢知器路段目前平均車速 (TravelSpeed)、旅行時間與壅塞等級時使用。
+      回傳結果包在頂層 LiveTraffics 陣列中。
+    tags: ["國道", "高速公路", "即時路況", "塞車", "車速"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每 1 分鐘更新"
+    endpoint: "/v2/Road/Traffic/Live/Freeway"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v2/Road/Traffic/Live/Freeway?$top=1&$format=JSON"
+    parameters:
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "TravelSpeed lt 40"
+        description: "篩選低速壅塞路段或指定 SectionID"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 30
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "LiveTraffics"
+        type: "array"
+        description: "國道路段即時交通流量與速率陣列"
+      - name: "LiveTraffics[].SectionID"
+        type: "string"
+        description: "國道交通管理路段代碼"
+      - name: "LiveTraffics[].TravelTime"
+        type: "integer"
+        unit: "秒"
+        description: "通過該路段預估旅行時間"
+      - name: "LiveTraffics[].TravelSpeed"
+        type: "integer"
+        unit: "km/h"
+        description: "目前平均旅行車速"
+      - name: "LiveTraffics[].CongestionLevel"
+        type: "string"
+        description: "壅塞程度代碼（1=順暢、2=車多、3=略壅塞、4=壅塞、5=嚴重壅塞）"
+
+  - id: "parking_v1_offstreet_availability"
+    name: "各縣市路外停車場即時剩餘車位 (v1)"
+    category: "停車資訊"
+    publisher: "各縣市政府交通局 / 停車管理工程處"
+    source_page: "https://tdx.transportdata.tw/api-service/swagger"
+    ai_usage_guide: >
+      當使用者詢問某縣市公有或民營路外停車場「現在還有沒有車位、剩幾個車位」時查詢。
+      注意停車場 API 版本路徑為 /v1/，回傳資料位於頂層 ParkingAvailabilities 陣列中。
+    tags: ["停車場", "剩餘車位", "即時停車", "路外停車"]
+    format: "JSON"
+    method: "GET"
+    update_frequency: "每 1 至 5 分鐘更新"
+    endpoint: "/v1/Parking/OffStreet/ParkingAvailability/City/{City}"
+    sample_url: "https://tdx.transportdata.tw/api/basic/v1/Parking/OffStreet/ParkingAvailability/City/Taipei?$top=1&$format=JSON"
+    parameters:
+      - name: "City"
+        in: "path"
+        type: "string"
+        required: true
+        example: "Taipei"
+        description: "縣市英文代碼（如 Taipei、NewTaipei、Taoyuan、Taichung、Tainan、Kaohsiung）"
+      - name: "$filter"
+        in: "query"
+        type: "string"
+        required: false
+        example: "AvailableSpaces gt 10"
+        description: "篩選剩餘車位數或停車場名稱"
+      - name: "$top"
+        in: "query"
+        type: "integer"
+        required: false
+        example: 30
+        description: "回傳筆數上限"
+      - name: "$format"
+        in: "query"
+        type: "string"
+        required: false
+        default: "JSON"
+        description: "指定回傳格式"
+    fields:
+      - name: "ParkingAvailabilities"
+        type: "array"
+        description: "路外停車場即時剩餘車位清單"
+      - name: "ParkingAvailabilities[].CarParkID"
+        type: "string"
+        description: "停車場代碼"
+      - name: "ParkingAvailabilities[].CarParkName"
+        type: "object"
+        description: "停車場中英文名稱物件（Zh_tw、En）"
+      - name: "ParkingAvailabilities[].TotalSpaces"
+        type: "integer"
+        unit: "格"
+        description: "總停車位數"
+      - name: "ParkingAvailabilities[].AvailableSpaces"
+        type: "integer"
+        unit: "格"
+        description: "目前即時剩餘可用車位數（負數通常代表目前無即時數值回傳）"

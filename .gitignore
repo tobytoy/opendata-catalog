@@ -10,7 +10,8 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
+dist/*
+!dist/full-catalog.json
 downloads/
 eggs/
 .eggs/
@@ -221,3 +222,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# The tmp files & local scratch/secrets (never commit private info)
+TMP/
+.env.*
+!.env.example
+*.pem
+*.key
+*secret*
+*credentials*
+*token*.json
+.opencli/
+web-articles/
+
+

@@ -1,0 +1,80 @@
+# ==========================================
+# 1. 文件版本與維護資訊 (Document Metadata)
+# ==========================================
+# 使用說明：
+# 1) 複製本檔案為 sources/<provider-id>.yaml（檔名須與下方 provider.id 完全一致）
+# 2) 將所有 <...> 佔位符替換為真實資料，並移除不需要的註解或選填欄位
+# 3) 執行 python scripts/validate.py --check-urls && python scripts/build_index.py 驗證
+catalog_version: "1.0.0"
+schema_version: "1.0"
+last_updated: "2026-11-26T12:00:00+08:00"
+maintainer: "@your-github-handle"
+changelog:
+  - version: "1.0.0"
+    date: "2026-11-26"
+    note: "初始建立 <平臺或資料專案名稱> 目錄"
+
+# ==========================================
+# 2. 資料提供方共用資訊 (Provider Info)
+# ==========================================
+provider:
+  id: "your-provider-id"
+  name: "平臺或公開資料專案名稱"
+  summary: "用一句話描述這個平臺涵蓋哪些資料，供 AI 第一階段快速判斷（10-200 字）"
+  organization: "主辦機關或發布社群名稱"
+  homepage: "https://example.org/"
+  docs_url: "https://example.org/docs"
+  base_url: "https://example.org/api"
+  license: "政府資料開放授權條款-第1版"
+  license_url: "https://example.org/license"
+  rate_limit: "請描述請求頻率上限或快取建議"
+  auth:
+    required: false
+    type: "None"
+    # 若 required 為 true，請依實際認證型態補充下列相關欄位（切勿填入真實金鑰）：
+    # type: "API Key (Query Parameter)" | "API Key (Header)" | "Bearer Token" | "OAuth2 Client Credentials (Bearer Token)"
+    # token_url: "https://example.org/oauth/token"
+    # header_name: "Authorization"
+    # param_name: "api_key"
+    # env_vars:
+    #   - "YOUR_PROVIDER_API_KEY"
+    how_to_get: "說明免認證直接下載，或如何註冊與申請免費金鑰"
+
+# ==========================================
+# 3. 資料集清單與詳細 Metadata (Datasets)
+# ==========================================
+datasets:
+  - id: "sample_dataset_id"
+    name: "資料集顯示名稱"
+    category: "主題分類"
+    publisher: "實際資料提供者"
+    source_page: "https://example.org/datasets/sample"
+    ai_usage_guide: >
+      說明 AI Agent 應在什麼使用者提問下選擇此資料集、呼叫前是否需要先查詢其他資料集取得代碼，
+      以及實務上容易踩雷的編碼、日期格式（如民國年）、異體字（臺／台）或狀態碼定義。
+    tags: ["標籤一", "標籤二"]
+    format: "JSON"
+    encoding: "UTF-8"
+    method: "GET"
+    update_frequency: "每日更新"
+    # 二擇一（或同時保留）：
+    # - 若為平臺 API，請使用相對於 provider.base_url 的 endpoint（以 / 開頭）
+    # - 若為靜態檔案或獨立網址，請使用完整 download_url
+    endpoint: "/sample"
+    sample_url: "https://example.org/api/sample?limit=1"
+    parameters:
+      - name: "limit"
+        in: "query"
+        type: "integer"
+        required: false
+        default: 20
+        example: 10
+        description: "回傳筆數上限"
+    fields:
+      - name: "id"
+        type: "string"
+        description: "資料主鍵代碼"
+      - name: "updated_at"
+        type: "datetime"
+        format: "ISO 8601"
+        description: "資料最後更新時間"

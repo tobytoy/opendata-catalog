@@ -1,0 +1,48 @@
+name: Auto Build Catalog Index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sources/**"
+      - "scripts/build_index.py"
+      - "schemas/catalog.schema.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-index:
+    name: Compile llms.txt & dist/full-catalog.json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate sources before building
+        run: python scripts/validate.py
+
+      - name: Build index artifacts
+        run: python scripts/build_index.py
+
+      - name: Commit updated index files if changed
+        run: |
+          if [[ -n "$(git status --porcelain llms.txt dist/full-catalog.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add llms.txt dist/full-catalog.json
+            git commit -m "chore(catalog): rebuild llms.txt and full-catalog.json [skip ci]"
+            git push
+          else
+            echo "Index artifacts are already up to date."
+          fi

@@ -1,0 +1,75 @@
+name: PR Catalog Validation
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate YAML Schema, Privacy & Live Endpoints
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check version bump on modified source files
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+          import sys
+          import yaml
+
+          base_sha = os.environ["BASE_SHA"]
+          head_sha = os.environ["HEAD_SHA"]
+          diff = subprocess.check_output(
+              ["git", "diff", "--name-status", f"{base_sha}...{head_sha}", "--", "sources/"],
+              text=True,
+          ).strip()
+
+          errors = []
+          for line in diff.splitlines():
+              parts = line.split("\t")
+              status, path = parts[0], parts[-1]
+              if status != "M" or not path.endswith((".yaml", ".yml")):
+                  continue
+              old_raw = subprocess.check_output(["git", "show", f"{base_sha}:{path}"], text=True)
+              old_doc = yaml.safe_load(old_raw)
+              with open(path, "r", encoding="utf-8") as fh:
+                  new_doc = yaml.safe_load(fh)
+              if old_doc.get("catalog_version") == new_doc.get("catalog_version"):
+                  errors.append(f"{path}: Modified source must increment catalog_version.")
+              if old_doc.get("last_updated") == new_doc.get("last_updated"):
+                  errors.append(f"{path}: Modified source must update last_updated.")
+
+          if errors:
+              for err in errors:
+                  print(f"ERROR: {err}", file=sys.stderr)
+              sys.exit(1)
+          print("Version bump check passed.")
+          PY
+
+      - name: Run schema and privacy validation
+        run: python scripts/validate.py
+
+      - name: Run catalog tooling unit tests
+        run: python -m unittest discover -s tests -v
